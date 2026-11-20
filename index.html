@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WNBA · team stats · interactive graph</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: #f5f2f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .app-card {
+            max-width: 1300px;
+            width: 100%;
+            background: white;
+            border-radius: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08), 0 8px 20px rgba(0,0,0,0.06);
+            padding: 30px 30px 40px;
+            transition: 0.25s;
+        }
+        h1 {
+            font-weight: 600;
+            font-size: 2.2rem;
+            letter-spacing: -0.5px;
+            color: #1e1a2b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .subhead {
+            color: #5b5266;
+            font-weight: 400;
+            font-size: 1rem;
+            border-left: 4px solid #f4818f;
+            padding-left: 16px;
+            margin-bottom: 28px;
+            background: #faf8f7;
+            border-radius: 0 12px 12px 0;
+            line-height: 1.5;
+        }
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin-top: 10px;
+        }
+        @media (max-width: 860px) {
+            .grid-2col {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+        }
+        .chart-container {
+            background: #fcfaf9;
+            padding: 18px 18px 10px;
+            border-radius: 28px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.02);
+            transition: all 0.2s;
+        }
+        .chart-container canvas {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 360px;
+            border-radius: 16px;
+        }
+        .stats-panel {
+            background: #fcfaf9;
+            border-radius: 28px;
+            padding: 20px 20px 18px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .stats-panel h2 {
+            font-weight: 500;
+            font-size: 1.3rem;
+            color: #2c2638;
+            letter-spacing: -0.2px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stats-panel h2 small {
+            font-weight: 400;
+            font-size: 0.9rem;
+            color: #7d728b;
+            margin-left: 4px;
+        }
+        .team-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .team-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: white;
+            border-radius: 60px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: 0.15s;
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+        .team-row:hover {
+            background: #fff9f8;
+            border-color: #f0d9d6;
+            transform: scale(1.005);
+        }
+        .team-abbr {
+            font-weight: 600;
+            width: 40px;
+            color: #2c2638;
+            font-size: 0.95rem;
+        }
+        .team-name {
+            flex: 1;
+            font-weight: 450;
+            color: #1f1a2a;
+            font-size: 0.95rem;
+        }
+        .record-badge {
+            background: #1e1a2b;
+            color: white;
+            padding: 2px 14px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            letter-spacing: 0.3px;
+            background: #2b243b;
+            margin-right: 12px;
+            white-space: nowrap;
+        }
+        .stat-group {
+            display: flex;
+            gap: 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #4a4057;
+        }
+        .stat-group span {
+            background: #f1edec;
+            padding: 2px 12px;
+            border-radius: 30px;
+            white-space: nowrap;
+        }
+        .stat-group .pts { background: #fae4e0; color: #982b3a; }
+        .stat-group .reb { background: #e0e6f0; color: #1d4a7a; }
+        .stat-group .ast { background: #e3f0e3; color: #1f6e3f; }
+        .stat-group .stl { background: #f0e8d8; color: #8f6f3a; }
+
+        .legend-note {
+            margin-top: 18px;
+            color: #6b6278;
+            font-size: 0.8rem;
+            border-top: 1px solid #ede8e6;
+            padding-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 20px;
+            justify-content: flex-start;
+        }
+        .legend-note i {
+            font-style: normal;
+            background: #f3efee;
+            padding: 2px 10px;
+            border-radius: 30px;
+        }
+        .footer-note {
+            margin-top: 22px;
+            font-size: 0.8rem;
+            color: #928a99;
+            text-align: right;
+            border-top: 1px solid #ede8e6;
+            padding-top: 20px;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+            background: #ece8e6;
+            border-radius: 20px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c5bcc6;
+            border-radius: 20px;
+        }
+        .badge-w {
+            background: #25755a;
+            color: white;
+        }
+        .badge-l {
+            background: #a64a4a;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    <h1>🏀 WNBA · team stats</h1>
+    <div class="subhead">2025 season · interactive graph &amp; record view</div>
+
+    <div class="grid-2col">
+        <!-- left: chart -->
+        <div class="chart-container">
+            <canvas id="teamChart" width="500" height="350"></canvas>
+            <div style="display: flex; justify-content: center; gap: 28px; margin: 8px 0 4px; font-size: 0.75rem; color: #4d435a;">
+                <span><span style="display:inline-block; width:12px; height:12px; background:#f4818f; border-radius:4px;"></span> Win %</span>
+                <span><span style="display:inline-block; width:12px; height:12px; background:#3d7ea6; border-radius:4px;"></span> PPG</span>
+                <span><span style="display:inline-block; width:12px; height:12px; background:#5fa87f; border-radius:4px;"></span> RPG</span>
+            </div>
+        </div>
+
+        <!-- right: team records + extra stats -->
+        <div class="stats-panel">
+            <h2>📋 team records <small>· W–L · extra stats</small></h2>
+            <div class="team-grid" id="teamList">
+                <!-- dynamic from js -->
+            </div>
+            <div class="legend-note">
+                <span><i>🏷️</i> PPG · points per game</span>
+                <span><i>🏷️</i> RPG · rebounds per game</span>
+                <span><i>🏷️</i> APG · assists per game</span>
+                <span><i>🏷️</i> SPG · steals per game</span>
+            </div>
+        </div>
+    </div>
+    <div class="footer-note">hover over chart · win% + pts/reb averages</div>
+</div>
+
+<script>
+    (function() {
+        // ----- WNBA 2025 (fictional but realistic) team data -----
+        const teams = [
+            { id: 'NYL', name: 'New York Liberty', wins: 28, losses: 12, ppg: 87.4, rpg: 38.2, apg: 22.1, spg: 7.8 },
+            { id: 'CON', name: 'Connecticut Sun', wins: 27, losses: 13, ppg: 84.9, rpg: 36.7, apg: 20.3, spg: 8.2 },
+            { id: 'LVA', name: 'Las Vegas Aces', wins: 26, losses: 14, ppg: 89.2, rpg: 37.5, apg: 23.7, spg: 7.4 },
+            { id: 'SEA', name: 'Seattle Storm', wins: 25, losses: 15, ppg: 83.1, rpg: 35.2, apg: 19.8, spg: 8.9 },
+            { id: 'CHI', name: 'Chicago Sky', wins: 24, losses: 16, ppg: 82.0, rpg: 37.0, apg: 21.2, spg: 7.0 },
+            { id: 'MIN', name: 'Minnesota Lynx', wins: 22, losses: 18, ppg: 80.7, rpg: 34.4, apg: 20.5, spg: 7.9 },
+            { id: 'PHO', name: 'Phoenix Mercury', wins: 21, losses: 19, ppg: 81.9, rpg: 33.5, apg: 19.1, spg: 6.8 },
+            { id: 'DAL', name: 'Dallas Wings', wins: 20, losses: 20, ppg: 83.8, rpg: 36.0, apg: 20.0, spg: 7.3 },
+            { id: 'ATL', name: 'Atlanta Dream', wins: 18, losses: 22, ppg: 79.3, rpg: 33.9, apg: 18.9, spg: 7.1 },
+            { id: 'WAS', name: 'Washington Mystics', wins: 17, losses: 23, ppg: 77.8, rpg: 32.4, apg: 17.5, spg: 6.9 },
+            { id: 'LAS', name: 'Los Angeles Sparks', wins: 15, losses: 25, ppg: 76.5, rpg: 32.0, apg: 16.8, spg: 6.4 },
+            { id: 'IND', name: 'Indiana Fever', wins: 13, losses: 27, ppg: 73.2, rpg: 30.6, apg: 15.3, spg: 5.9 }
+        ];
+
+        // sort by win% descending (for display consistency)
+        const sorted = [...teams].sort((a,b) => (b.wins/(b.wins+b.losses)) - (a.wins/(a.wins+a.losses)));
+
+        // ----- 1. render team list (right panel) -----
+        const teamListEl = document.getElementById('teamList');
+        function renderTeamRows() {
+            let html = '';
+            sorted.forEach(t => {
+                const total = t.wins + t.losses;
+                const winPct = (t.wins / total * 100).toFixed(1);
+                html += `
+                    <div class="team-row">
+                        <span class="team-abbr">${t.id}</span>
+                        <span class="team-name">${t.name}</span>
+                        <span class="record-badge">${t.wins}–${t.losses}</span>
+                        <div class="stat-group">
+                            <span class="pts">${t.ppg.toFixed(1)}</span>
+                            <span class="reb">${t.rpg.toFixed(1)}</span>
+                            <span class="ast">${t.apg.toFixed(1)}</span>
+                            <span class="stl">${t.spg.toFixed(1)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            teamListEl.innerHTML = html;
+        }
+        renderTeamRows();
+
+        // ----- 2. Chart.js bar chart: win% + PPG + RPG (3 datasets) -----
+        const labels = sorted.map(t => t.id);
+        const winPcts = sorted.map(t => +(t.wins / (t.wins + t.losses) * 100).toFixed(1));
+        const ppgValues = sorted.map(t => t.ppg);
+        const rpgValues = sorted.map(t => t.rpg);
+
+        const ctx = document.getElementById('teamChart').getContext('2d');
+
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Win %',
+                        data: winPcts,
+                        backgroundColor: 'rgba(244, 129, 143, 0.75)',
+                        borderColor: '#d95b6b',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        order: 1,
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'PPG',
+                        data: ppgValues,
+                        backgroundColor: 'rgba(61, 126, 166, 0.7)',
+                        borderColor: '#2b5f7e',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        order: 2,
+                        yAxisID: 'y1',
+                    },
+                    {
+                        label: 'RPG',
+                        data: rpgValues,
+                        backgroundColor: 'rgba(95, 168, 127, 0.65)',
+                        borderColor: '#3d7a59',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        order: 3,
+                        yAxisID: 'y1',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { 
+                        display: true,
+                        labels: { 
+                            boxWidth: 14, 
+                            padding: 12,
+                            font: { size: 11, weight: '500' },
+                            color: '#312a3b'
+                        } 
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let val = context.parsed.y;
+                                if (context.dataset.label === 'Win %') return label + ': ' + val.toFixed(1) + '%';
+                                return label + ': ' + val.toFixed(1);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 10, weight: '600' }, color: '#342d40' }
+                    },
+                    y: {
+                        position: 'left',
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: '#e4dedb' },
+                        ticks: { font: { size: 9 }, color: '#5a4f62', callback: v => v + '%' },
+                        title: { display: true, text: 'Win %', color: '#5f526a', font: { size: 9, weight: '500' } }
+                    },
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        max: 45,
+                        grid: { drawOnChartArea: false },
+                        ticks: { font: { size: 9 }, color: '#5a4f62' },
+                        title: { display: true, text: 'PPG / RPG', color: '#5f526a', font: { size: 9, weight: '500' } }
+                    }
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                elements: {
+                    bar: {
+                        backgroundColor: 'rgba(0,0,0,0)',
+                        borderSkipped: false,
+                    }
+                },
+                barPercentage: 0.8,
+                categoryPercentage: 0.7,
+            }
+        });
+
+        // (optional) minor tooltip improvement
+        // chart.update();
+
+        // ----- extra: sort consistency (already sorted) -----
+        // small responsive fix: re-render on resize (chartjs handles)
+        window.addEventListener('resize', function() {
+            // chart.resize() is automatic
+        });
+
+    })();
+</script>
+
+<!-- note: all stats & records are shown. interactive graph with win% + ppg + rpg -->
+</body>
+</html>
